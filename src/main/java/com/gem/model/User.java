@@ -5,11 +5,6 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
-/**
- * Maps EXACTLY to: users
- * user_id | full_name | email | password | nationality | user_type |
- * ssn | passport_number | phone_number | role_id | created_at
- */
 @Entity
 @Table(name = "users")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -50,17 +45,12 @@ public class User {
     private String phone;
 
     /**
-     * role_id FK → roles table (1=USER, 2=ADMIN, 3=BLOCK)
-     * We keep a simple integer that Hibernate won't try to join,
-     * and derive the Role enum from it via lifecycle hooks.
+     * role_id is the ONLY source of truth — stored directly in DB.
+     * 1 = USER, 2 = ADMIN, 3 = BLOCK
      */
     @Column(name = "role_id")
     @Builder.Default
     private Integer roleId = 1;
-
-    @Transient
-    @Builder.Default
-    private Role role = Role.USER;
 
     @Column(name = "created_at", updatable = false)
     @Builder.Default
@@ -68,36 +58,26 @@ public class User {
 
     // ── enums ────────────────────────────────────────────────────────────────
 
-    public enum Role    { USER, ADMIN, BLOCK }
+    public enum Role     { USER, ADMIN, BLOCK }
     public enum UserType { EGYPTIAN, FOREIGN }
 
-    // ── sync role enum ↔ roleId ──────────────────────────────────────────────
+    // ── role helpers — derived from roleId, no @Transient field ──────────────
 
-    @PostLoad
-    public void syncRoleFromId() {
-        if (roleId != null) {
-            role = switch (roleId) {
-                case 2  -> Role.ADMIN;
-                case 3  -> Role.BLOCK;
-                default -> Role.USER;
-            };
-        }
+    public Role getRole() {
+        if (roleId == null) return Role.USER;
+        return switch (roleId) {
+            case 2  -> Role.ADMIN;
+            case 3  -> Role.BLOCK;
+            default -> Role.USER;
+        };
     }
 
-    @PrePersist
-    @PreUpdate
-    public void syncIdFromRole() {
+    public void setRole(Role role) {
         if (role == null) role = Role.USER;
-        roleId = switch (role) {
+        this.roleId = switch (role) {
             case ADMIN -> 2;
             case BLOCK -> 3;
             default    -> 1;
         };
-    }
-
-    /** Convenience getter used in security layer */
-    public Role getRole() {
-        syncRoleFromId();
-        return role != null ? role : Role.USER;
     }
 }

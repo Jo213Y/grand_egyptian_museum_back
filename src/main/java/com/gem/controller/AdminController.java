@@ -22,6 +22,7 @@ public class AdminController {
 
     private final AdminService   adminService;
     private final UserRepository userRepo;
+    private final com.gem.repository.BookingRepository bookingRepo;
 
     /** GET /api/admin/statistics */
     @GetMapping("/statistics")
@@ -55,17 +56,44 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<?> getUsers() {
         List<Map<String, Object>> users = userRepo.findAll().stream()
-            .map(u -> {
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("id",       u.getId());
-                m.put("fullName", u.getFullName());
-                m.put("email",    u.getEmail());
-                m.put("phone",    u.getPhone());
-                m.put("role",     u.getRole().name());
-                return m;
-            })
-            .collect(Collectors.toList());
+                .map(u -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id",              u.getId());
+                    m.put("fullName",        u.getFullName());
+                    m.put("email",           u.getEmail());
+                    m.put("phone",           u.getPhone());
+                    m.put("nationality",     u.getNationality());
+                    m.put("ssn",             u.getSsn());
+                    m.put("passportNumber",  u.getPassportNumber());
+                    m.put("role",            u.getRole().name());
+                    m.put("createdAt",       u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
+                    // count tickets booked by this user
+                    long ticketCount = bookingRepo.findByUserOrderByOrderDateDesc(u).stream()
+                            .filter(b -> "Confirmed".equalsIgnoreCase(b.getOrderStatus()))
+                            .mapToLong(b -> b.getTickets() != null ? b.getTickets().size() : 0)
+                            .sum();
+                    m.put("ticketsBooked", ticketCount);
+                    return m;
+                })
+                .collect(Collectors.toList());
         return ResponseEntity.ok(users);
+    }
+
+    /** PUT /api/admin/users/{id}/block — toggle USER ↔ BLOCK */
+    @PutMapping("/users/{userId}/block")
+    public ResponseEntity<?> toggleBlock(@PathVariable Long userId) {
+        return userRepo.findById(userId).map(u -> {
+            // roleId is what's actually stored — toggle directly
+            Integer currentRoleId = u.getRoleId() != null ? u.getRoleId() : 1;
+            Integer newRoleId     = currentRoleId.equals(3) ? 1 : 3; // 1=USER, 3=BLOCK
+            u.setRoleId(newRoleId);
+            userRepo.save(u);
+            String newRole = newRoleId.equals(3) ? "BLOCK" : "USER";
+            return ResponseEntity.ok(Map.of(
+                    "message", "Role updated to " + newRole,
+                    "role",    newRole
+            ));
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     /** DELETE /api/admin/users/{id} */
@@ -87,9 +115,9 @@ public class AdminController {
         // سجلات مبسطة — يمكن توسيعها لاحقاً
         List<Map<String, Object>> logs = new ArrayList<>();
         logs.add(Map.of(
-            "timestamp", LocalDateTime.now().toString(),
-            "action",    "System",
-            "detail",    "Admin panel accessed"
+                "timestamp", LocalDateTime.now().toString(),
+                "action",    "System",
+                "detail",    "Admin panel accessed"
         ));
         return ResponseEntity.ok(logs);
     }

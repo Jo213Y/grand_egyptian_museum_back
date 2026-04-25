@@ -40,7 +40,7 @@ public class BookingService {
 
                 TicketTypeEntity typeEntity = resolveTicketType(item.getType());
                 double price = item.getPrice() != null ? item.getPrice()
-                             : (typeEntity != null ? typeEntity.getPrice() : 120.0);
+                        : (typeEntity != null ? typeEntity.getPrice() : 120.0);
 
                 for (int i = 0; i < item.getQuantity(); i++) {
                     BookingTicket ticket = new BookingTicket();
@@ -62,7 +62,7 @@ public class BookingService {
         if (req.getPayment() != null) {
             String cardNum = req.getPayment().getCardNumber();
             String last4   = (cardNum != null && cardNum.length() >= 4)
-                             ? cardNum.substring(cardNum.length() - 4) : "****";
+                    ? cardNum.substring(cardNum.length() - 4) : "****";
             payment = new Payment();
             payment.setAmount(total);
             payment.setPaymentStatus("Completed");
@@ -120,16 +120,17 @@ public class BookingService {
     // ── private helpers ───────────────────────────────────────────────────────
 
     private TicketTypeEntity resolveTicketType(String type) {
-        if (type == null) return ticketTypeRepo.findByTicketTypeIgnoreCase("Adult").orElse(null);
-        String mapped = switch (type.toLowerCase()) {
-            case "child", "student" -> "Child";
-            case "senior"           -> "Senior";
-            case "vip"              -> "VIP";
-            case "family"           -> "Family (2A+2C)";
-            case "group"            -> "Group (10+)";
-            default                 -> "Adult";
-        };
-        return ticketTypeRepo.findByTicketTypeIgnoreCase(mapped).orElse(null);
+        if (type == null) return ticketTypeRepo.findAll().stream().findFirst().orElse(null);
+        // Try exact match first (case-insensitive) — works with "Egyptian Adult", "VIP Ticket" etc.
+        return ticketTypeRepo.findByTicketTypeIgnoreCase(type)
+                .orElseGet(() ->
+                        // Fallback: partial match — if type="adult" match "Egyptian Adult"
+                        ticketTypeRepo.findAll().stream()
+                                .filter(t -> t.getTicketType() != null &&
+                                        t.getTicketType().toLowerCase().contains(type.toLowerCase()))
+                                .findFirst()
+                                .orElse(null)
+                );
     }
 
     private LocalDate parseDate(String s) {
