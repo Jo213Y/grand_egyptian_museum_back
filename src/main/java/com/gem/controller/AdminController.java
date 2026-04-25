@@ -96,6 +96,35 @@ public class AdminController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /** POST /api/admin/users — add new admin */
+    @PostMapping("/users")
+    public ResponseEntity<?> addAdmin(@RequestBody Map<String, String> body) {
+        try {
+            String email    = body.get("email");
+            String password = body.get("password");
+            String fullName = body.get("fullName");
+
+            if (email == null || password == null || fullName == null)
+                return ResponseEntity.badRequest().body(Map.of("message", "fullName, email and password are required"));
+
+            if (userRepo.existsByEmail(email))
+                return ResponseEntity.badRequest().body(Map.of("message", "Email already exists"));
+
+            com.gem.model.User admin = new com.gem.model.User();
+            admin.setFullName(fullName);
+            admin.setEmail(email);
+            admin.setPassword(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(password));
+            admin.setRoleId(2); // ADMIN
+            if (body.get("ssn") != null && !body.get("ssn").isBlank())
+                admin.setSsn(body.get("ssn"));
+            userRepo.save(admin);
+
+            return ResponseEntity.ok(Map.of("message", "Admin created successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     /** DELETE /api/admin/users/{id} */
     @DeleteMapping("/users/{userId}")
     public ResponseEntity<?> deleteUser(
