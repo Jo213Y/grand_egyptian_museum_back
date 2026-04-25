@@ -45,12 +45,15 @@ public class AdminService {
         // To support this properly, hall_id needs to be added to orders table in DB
         Map<String, Long> bookingsByHall = new LinkedHashMap<>();
 
+        long totalTickets = ticketsByType.values().stream().mapToLong(Long::longValue).sum();
+
         StatisticsResponse res = new StatisticsResponse();
         res.setTotalUsers(totalUsers);
         res.setTotalBookings(totalBookings);
         res.setConfirmedBookings(confirmed);
         res.setCancelledBookings(cancelled);
         res.setTotalRevenue(totalRevenue);
+        res.setTotalTickets(totalTickets);
         res.setTicketsByType(ticketsByType);
         res.setRevenueByType(revenueByType);
         res.setBookingsByHall(bookingsByHall);
