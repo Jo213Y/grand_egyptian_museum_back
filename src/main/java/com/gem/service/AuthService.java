@@ -26,19 +26,29 @@ public class AuthService {
     private final UserDetailsServiceImpl userDetailsService;
 
     public AuthResponse login(LoginRequest req) {
+        // Check if user is blocked BEFORE authenticating
+        User user = userRepo.findByEmail(req.getEmail())
+                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+
+        if (user.getRole() == User.Role.BLOCK) {
+            throw new RuntimeException("Your account has been blocked. Please contact support.");
+        }
+
         authManager.authenticate(
-            new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
+                new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
         );
         UserDetails ud    = userDetailsService.loadUserByUsername(req.getEmail());
         String      token = jwtUtil.generateToken(ud);
-        User        user  = userRepo.findByEmail(req.getEmail()).orElseThrow();
         return buildResponse(user, token);
     }
 
     public AuthResponse register(RegisterRequest req) {
-        if (userRepo.existsByEmail(req.getEmail())) {
+        userRepo.findByEmail(req.getEmail()).ifPresent(existing -> {
+            if (existing.getRole() == User.Role.BLOCK) {
+                throw new RuntimeException("This account has been blocked. Please contact support.");
+            }
             throw new RuntimeException("Email already registered");
-        }
+        });
         User user = new User();
         user.setFullName(req.getFullName());
         user.setEmail(req.getEmail());

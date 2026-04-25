@@ -18,6 +18,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         var user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
+        if (user.getRole() == com.gem.model.User.Role.BLOCK) {
+            throw new UsernameNotFoundException("Account is blocked: " + email);
+        }
+
         return new User(
                 user.getEmail(),
                 user.getPassword(),
