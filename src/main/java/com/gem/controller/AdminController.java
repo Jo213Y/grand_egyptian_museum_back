@@ -1,6 +1,9 @@
 package com.gem.controller;
 
 import com.gem.dto.*;
+import com.gem.model.AdminLog;
+import com.gem.repository.AdminLogRepository;
+import com.gem.service.AdminLogService;
 import com.gem.model.User;
 import com.gem.repository.UserRepository;
 import com.gem.service.AdminService;
@@ -23,6 +26,8 @@ public class AdminController {
     private final AdminService   adminService;
     private final UserRepository userRepo;
     private final com.gem.repository.BookingRepository bookingRepo;
+    private final AdminLogService logService;
+    private final AdminLogRepository logRepo;
 
     /** GET /api/admin/statistics */
     @GetMapping("/statistics")
@@ -46,7 +51,9 @@ public class AdminController {
             @PathVariable Long id,
             @RequestBody HallUpdateRequest req) {
         try {
-            return ResponseEntity.ok(adminService.updateHall(id, req));
+            HallResponse updated = adminService.updateHall(id, req);
+            logService.log("UPDATE_HALL", "Updated hall ID=" + id + " → " + req);
+            return ResponseEntity.ok(updated);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
@@ -81,14 +88,20 @@ public class AdminController {
 
     /** PUT /api/admin/users/{id}/block — toggle USER ↔ BLOCK */
     @PutMapping("/users/{userId}/block")
-    public ResponseEntity<?> toggleBlock(@PathVariable Long userId) {
+    public ResponseEntity<?> toggleBlock(
+            @PathVariable Long userId,
+            @RequestBody(required = false) Map<String, String> body) {
         return userRepo.findById(userId).map(u -> {
-            // roleId is what's actually stored — toggle directly
             Integer currentRoleId = u.getRoleId() != null ? u.getRoleId() : 1;
-            Integer newRoleId     = currentRoleId.equals(3) ? 1 : 3; // 1=USER, 3=BLOCK
+            Integer newRoleId     = currentRoleId.equals(3) ? 1 : 3;
             u.setRoleId(newRoleId);
             userRepo.save(u);
             String newRole = newRoleId.equals(3) ? "BLOCK" : "USER";
+            String reason  = (body != null && body.get("reason") != null && !body.get("reason").isBlank())
+                    ? body.get("reason") : null;
+            String detail  = (newRoleId.equals(3) ? "Blocked" : "Unblocked") + " user: " + u.getEmail()
+                    + (reason != null ? " | Reason: " + reason : "");
+            logService.log(newRoleId.equals(3) ? "BLOCK_USER" : "UNBLOCK_USER", detail);
             return ResponseEntity.ok(Map.of(
                     "message", "Role updated to " + newRole,
                     "role",    newRole
@@ -118,7 +131,7 @@ public class AdminController {
             if (body.get("ssn") != null && !body.get("ssn").isBlank())
                 admin.setSsn(body.get("ssn"));
             userRepo.save(admin);
-
+            logService.log("ADD_ADMIN", "Added new admin: " + email);
             return ResponseEntity.ok(Map.of("message", "Admin created successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
@@ -131,6 +144,10 @@ public class AdminController {
             @PathVariable Long userId,
             @RequestBody(required = false) Map<String, String> body) {
         try {
+            String reason = body != null ? body.getOrDefault("reason", "No reason provided") : "No reason provided";
+            userRepo.findById(userId).ifPresent(u ->
+                    logService.log("DELETE_USER", "Deleted user: " + u.getEmail() + " | Reason: " + reason)
+            );
             userRepo.deleteById(userId);
             return ResponseEntity.ok(Map.of("message", "User deleted"));
         } catch (Exception e) {
@@ -138,16 +155,21 @@ public class AdminController {
         }
     }
 
-    /** GET /api/admin/logs — simple activity log */
+    /** GET /api/admin/logs */
     @GetMapping("/logs")
     public ResponseEntity<?> getLogs() {
-        // سجلات مبسطة — يمكن توسيعها لاحقاً
-        List<Map<String, Object>> logs = new ArrayList<>();
-        logs.add(Map.of(
-                "timestamp", LocalDateTime.now().toString(),
-                "action",    "System",
-                "detail",    "Admin panel accessed"
-        ));
+        List<Map<String, Object>> logs = logRepo.findAllByOrderByTimestampDesc()
+                .stream()
+                .map(l -> {
+                    java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id",         l.getId());
+                    m.put("adminName",  l.getAdminName() != null ? l.getAdminName() : l.getAdminEmail());
+                    m.put("adminEmail", l.getAdminEmail());
+                    m.put("action",     l.getAction());
+                    m.put("detail",     l.getDetail());
+                    m.put("timestamp",  l.getTimestamp().toString());
+                    return m;
+                }).toList();
         return ResponseEntity.ok(logs);
     }
 }
