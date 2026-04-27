@@ -28,7 +28,8 @@ public class HallController {
 
     /** GET /api/halls/{id}/exhibitions — returns exhibitions + artifacts for a hall */
     @GetMapping("/{id}/exhibitions")
-    public ResponseEntity<?> getExhibitions(@PathVariable Integer id) {
+    public ResponseEntity<?> getExhibitions(@PathVariable Integer id,
+                                            @RequestParam(required = false, defaultValue = "false") boolean showHidden) {
         List<Map<String, Object>> result = new ArrayList<>();
 
         exhibitionRepo.findByHallId(id).forEach(ex -> {
@@ -40,15 +41,18 @@ public class HallController {
 
             List<Map<String, Object>> arts = new ArrayList<>();
             if (ex.getArtifacts() != null) {
-                ex.getArtifacts().forEach(a -> {
-                    Map<String, Object> aMap = new LinkedHashMap<>();
-                    aMap.put("Artifact_id",       a.getArtifactId());
-                    aMap.put("Art_name",           a.getArtName());
-                    aMap.put("Historical_period",  a.getHistoricalPeriod());
-                    aMap.put("Art_description",    a.getArtDescription());
-                    aMap.put("image_url",          a.getImageUrl());
-                    arts.add(aMap);
-                });
+                ex.getArtifacts().stream()
+                        .filter(a -> showHidden || !Boolean.TRUE.equals(a.getIsHidden()))
+                        .forEach(a -> {
+                            Map<String, Object> aMap = new LinkedHashMap<>();
+                            aMap.put("Artifact_id",       a.getArtifactId());
+                            aMap.put("Art_name",           a.getArtName());
+                            aMap.put("Historical_period",  a.getHistoricalPeriod());
+                            aMap.put("Art_description",    a.getArtDescription());
+                            aMap.put("image_url",          a.getImageUrl());
+                            aMap.put("isHidden",           Boolean.TRUE.equals(a.getIsHidden()));
+                            arts.add(aMap);
+                        });
             }
             exMap.put("artifacts", arts);
             result.add(exMap);

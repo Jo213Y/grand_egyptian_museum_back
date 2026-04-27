@@ -26,4 +26,7 @@ public class Artifact {
 
     @Column(name = "image_url", length = 500)
     private String imageUrl;
+
+    @Column(name = "is_hidden")
+    private Boolean isHidden = false;
 }

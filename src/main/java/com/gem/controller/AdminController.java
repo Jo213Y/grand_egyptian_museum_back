@@ -28,6 +28,8 @@ public class AdminController {
     private final com.gem.repository.BookingRepository bookingRepo;
     private final AdminLogService logService;
     private final AdminLogRepository logRepo;
+    private final com.gem.repository.ExhibitionRepository exhibitionRepo;
+    private final com.gem.repository.ArtifactRepository artifactRepo;
 
     /** GET /api/admin/statistics */
     @GetMapping("/statistics")
@@ -153,6 +155,85 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    /** POST /api/admin/exhibitions — add new exhibition to a hall */
+    @PostMapping("/exhibitions")
+    public ResponseEntity<?> addExhibition(@RequestBody Map<String, Object> body) {
+        try {
+            com.gem.model.Exhibition ex = new com.gem.model.Exhibition();
+            ex.setExhibitionId((int)(System.currentTimeMillis() % 100000));
+            ex.setExhibitionName((String) body.get("name"));
+            ex.setExhibitionDescription((String) body.get("description"));
+            ex.setHallId(body.get("hallId") != null ? ((Number) body.get("hallId")).intValue() : null);
+            ex.setImageUrl((String) body.getOrDefault("imageUrl", ""));
+            exhibitionRepo.save(ex);
+            logService.log("ADD_EXHIBITION", "Added exhibition: " + ex.getExhibitionName()
+                    + " to Hall ID=" + ex.getHallId());
+            return ResponseEntity.ok(Map.of("message", "Exhibition added"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /** POST /api/admin/artifacts — add artifact to an exhibition */
+    @PostMapping("/artifacts")
+    public ResponseEntity<?> addArtifact(@RequestBody Map<String, Object> body) {
+        try {
+            com.gem.model.Artifact art = new com.gem.model.Artifact();
+            art.setArtifactId((int)(System.currentTimeMillis() % 100000));
+            art.setArtName((String) body.get("name"));
+            art.setHistoricalPeriod((String) body.getOrDefault("historicalPeriod", ""));
+            art.setArtDescription((String) body.getOrDefault("description", ""));
+            art.setExhibitionId(body.get("exhibitionId") != null
+                    ? ((Number) body.get("exhibitionId")).intValue() : null);
+            art.setImageUrl((String) body.getOrDefault("imageUrl", ""));
+            artifactRepo.save(art);
+            logService.log("ADD_ARTIFACT", "Added artifact: " + art.getArtName());
+            return ResponseEntity.ok(Map.of("message", "Artifact added"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /** PUT /api/admin/artifacts/{id} — update artifact */
+    @PutMapping("/artifacts/{id}")
+    public ResponseEntity<?> updateArtifact(@PathVariable Integer id,
+                                            @RequestBody Map<String, Object> body) {
+        return artifactRepo.findById(id).map(a -> {
+            if (body.get("name") != null)             a.setArtName((String) body.get("name"));
+            if (body.get("historicalPeriod") != null) a.setHistoricalPeriod((String) body.get("historicalPeriod"));
+            if (body.get("description") != null)      a.setArtDescription((String) body.get("description"));
+            if (body.get("imageUrl") != null)         a.setImageUrl((String) body.get("imageUrl"));
+            artifactRepo.save(a);
+            logService.log("EDIT_ARTIFACT", "Edited artifact: " + a.getArtName());
+            return ResponseEntity.ok(Map.of("message", "Artifact updated"));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    /** PUT /api/admin/artifacts/{id}/hide — toggle artifact visibility */
+    @PutMapping("/artifacts/{id}/hide")
+    public ResponseEntity<?> toggleArtifactVisibility(@PathVariable Integer id) {
+        return artifactRepo.findById(id).map(a -> {
+            boolean nowHidden = !Boolean.TRUE.equals(a.getIsHidden());
+            a.setIsHidden(nowHidden);
+            artifactRepo.save(a);
+            logService.log(
+                    nowHidden ? "HIDE_ARTIFACT" : "SHOW_ARTIFACT",
+                    (nowHidden ? "Hidden" : "Shown") + " artifact: " + a.getArtName()
+            );
+            return ResponseEntity.ok(Map.of(
+                    "message", nowHidden ? "Artifact hidden" : "Artifact visible",
+                    "isHidden", nowHidden
+            ));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    /** DELETE /api/admin/logs — clear all logs */
+    @DeleteMapping("/logs")
+    public ResponseEntity<?> clearLogs() {
+        logRepo.deleteAll();
+        return ResponseEntity.ok(Map.of("message", "All logs cleared"));
     }
 
     /** GET /api/admin/logs */
