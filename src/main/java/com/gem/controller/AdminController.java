@@ -196,6 +196,35 @@ public class AdminController {
         }
     }
 
+    /** GET /api/admin/bookings — all bookings with user info */
+    @GetMapping("/bookings")
+    public ResponseEntity<?> getAllBookings() {
+        var bookings = bookingRepo.findAll();
+        var result = bookings.stream().map(b -> {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("id", b.getOrderId());
+            m.put("visitDate", b.getVisitDate() != null ? b.getVisitDate().toString() : "");
+            m.put("totalPrice", b.getTotalPrice());
+            m.put("status", b.getOrderStatus());
+            m.put("userName", b.getUser() != null ? b.getUser().getFullName() : "");
+            m.put("userEmail", b.getUser() != null ? b.getUser().getEmail() : "");
+            var tickets = b.getTickets() != null ? b.getTickets().stream().map(t -> {
+                java.util.Map<String, Object> tm = new java.util.LinkedHashMap<>();
+                String typeName = t.getTicketType() != null ? t.getTicketType().getTicketType() : "";
+                double price = t.getSoldPrice() != null ? t.getSoldPrice() : 0;
+                int qty = t.getQuantity() != null ? t.getQuantity() : 1;
+                tm.put("ticketType", typeName);
+                tm.put("quantity", qty);
+                tm.put("unitPrice", price);
+                tm.put("subtotal", price * qty);
+                return tm;
+            }).collect(java.util.stream.Collectors.toList()) : java.util.List.of();
+            m.put("tickets", tickets);
+            return m;
+        }).collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
     /** PUT /api/admin/artifacts/{id} — update artifact */
     @PutMapping("/artifacts/{id}")
     public ResponseEntity<?> updateArtifact(@PathVariable Integer id,

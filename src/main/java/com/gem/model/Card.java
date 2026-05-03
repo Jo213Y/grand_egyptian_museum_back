@@ -3,12 +3,7 @@ package com.gem.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-/**
- * Maps EXACTLY to: cards
- * Card_id | Card_number | Bank | Holder_name | user_id
- *
- * FIX: SQL schema uses user_id (FK → users), NOT Visitor_id.
- */
+
 @Entity
 @Table(name = "cards")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

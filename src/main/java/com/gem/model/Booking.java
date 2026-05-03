@@ -6,14 +6,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Maps EXACTLY to: orders
- * Order_id | Order_date | Order_status | Transaction_id | total_price |
- * visit_date | user_id | created_at
- *
- * FIX: removed Hall_id join — "orders" table has no Hall_id column in SQL schema.
- *      Hall info is for display only → kept as @Transient.
- */
+
 @Entity
 @Table(name = "orders")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -54,10 +47,6 @@ public class Booking {
     @Column(name = "total_price")
     private Double totalPrice;
 
-    /**
-     * Many-to-Many with etickets via orders_tickets.
-     * Booking owns the join table.
-     */
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.EAGER)
     @JoinTable(
         name = "orders_tickets",

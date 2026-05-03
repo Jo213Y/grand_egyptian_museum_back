@@ -44,10 +44,6 @@ public class User {
     @Column(name = "phone_number", length = 20)
     private String phone;
 
-    /**
-     * role_id is the ONLY source of truth — stored directly in DB.
-     * 1 = USER, 2 = ADMIN, 3 = BLOCK
-     */
     @Column(name = "role_id")
     @Builder.Default
     private Integer roleId = 1;

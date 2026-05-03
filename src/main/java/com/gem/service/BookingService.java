@@ -113,8 +113,22 @@ public class BookingService {
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
         if (!booking.getUser().getEmail().equals(email))
             throw new RuntimeException("Access denied");
-        booking.setOrderStatus("Cancelled");
+        if ("CANCELLED".equalsIgnoreCase(booking.getOrderStatus()))
+            throw new RuntimeException("Booking is already cancelled");
+        booking.setOrderStatus("CANCELLED");
         return toDto(bookingRepo.save(booking));
+    }
+
+    @Transactional
+    public void delete(Long id, String email) {
+        Booking booking = bookingRepo.findById(id.intValue())
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+        if (!booking.getUser().getEmail().equals(email))
+            throw new RuntimeException("Access denied");
+        // Clear join table rows first to avoid FK constraint violation
+        booking.getTickets().clear();
+        bookingRepo.save(booking);
+        bookingRepo.delete(booking);
     }
 
     // ── private helpers ───────────────────────────────────────────────────────
@@ -158,7 +172,7 @@ public class BookingService {
         res.setId(b.getOrderId() != null ? b.getOrderId().longValue() : null);
         res.setVisitDate(b.getVisitDate() != null ? b.getVisitDate().toString() : "");
         res.setTotalPrice(b.getTotalPrice() != null ? b.getTotalPrice() : 0.0);
-        res.setStatus(b.getOrderStatus() != null ? b.getOrderStatus() : "Confirmed");
+        res.setStatus(b.getOrderStatus() != null ? b.getOrderStatus().toUpperCase() : "CONFIRMED");
         res.setHallName(b.getHall() != null ? b.getHall().getHallName() : null);
         res.setTickets(details);
         return res;
