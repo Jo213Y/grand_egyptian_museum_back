@@ -22,6 +22,13 @@ public class BookingController {
             @RequestBody BookingRequest req,
             @AuthenticationPrincipal UserDetails user) {
         try {
+            boolean isAdmin = user.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (isAdmin) {
+                return ResponseEntity.status(403).body(Map.of(
+                        "message", "Admins are not allowed to book tickets. Please use a regular user account."
+                ));
+            }
             return ResponseEntity.ok(bookingService.create(req, user.getUsername()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

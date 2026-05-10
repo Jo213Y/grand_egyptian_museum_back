@@ -2,6 +2,7 @@ package com.gem.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "etickets")
@@ -39,6 +40,7 @@ public class BookingTicket {
     @Column(name = "user_id")
     private Long userId;
 
+    @JsonIgnore
     @ManyToMany(mappedBy = "tickets", fetch = FetchType.LAZY)
     private java.util.List<Booking> booking;
 }

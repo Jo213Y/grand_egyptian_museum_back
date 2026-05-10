@@ -2,6 +2,7 @@ package com.gem.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,11 +33,12 @@ public class Booking {
     private String orderStatus = "Confirmed";
 
     /** FK → users(user_id) */
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
 
-    /** FK → payments(Transaction_id) */
+    @JsonIgnore
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "Transaction_id")
     private Payment payment;
@@ -49,13 +51,17 @@ public class Booking {
 
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.EAGER)
     @JoinTable(
-        name = "orders_tickets",
-        joinColumns        = @JoinColumn(name = "Order_id"),
-        inverseJoinColumns = @JoinColumn(name = "Ticket_id")
+            name = "orders_tickets",
+            joinColumns        = @JoinColumn(name = "Order_id"),
+            inverseJoinColumns = @JoinColumn(name = "Ticket_id")
     )
     @Builder.Default
     private List<BookingTicket> tickets = new ArrayList<>();
 
+    /**
+     * Hall is NOT a column in orders — kept transient for UI convenience.
+     * Populate manually in service layer when needed.
+     */
     @Transient
     private Hall hall;
 

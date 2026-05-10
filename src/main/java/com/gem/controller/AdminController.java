@@ -7,6 +7,7 @@ import com.gem.service.AdminLogService;
 import com.gem.model.User;
 import com.gem.repository.UserRepository;
 import com.gem.service.AdminService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -62,9 +63,23 @@ public class AdminController {
     }
 
     /** GET /api/admin/users */
+    @Transactional
     @GetMapping("/users")
-    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> getUsers() {
+        // Build userId → ticketCount map in ONE query
+        Map<Long, Long> ticketCountByUser = new java.util.HashMap<>();
+        try {
+            for (Object[] row : bookingRepo.sumTicketQuantityPerUser()) {
+                if (row[0] != null) {
+                    ticketCountByUser.put(((Number) row[0]).longValue(),
+                            row[1] != null ? ((Number) row[1]).longValue() : 0L);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[AdminController] sumTicketQuantityPerUser failed: " + e.getMessage());
+            // fallback: ticketsBooked = 0 for all users
+        }
+
         List<Map<String, Object>> users = userRepo.findAll().stream()
                 .map(u -> {
                     Map<String, Object> m = new LinkedHashMap<>();
@@ -77,14 +92,8 @@ public class AdminController {
                     m.put("passportNumber",  u.getPassportNumber());
                     m.put("role",            u.getRole().name());
                     m.put("createdAt",       u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
-                    // count tickets booked by this user
-                    long ticketCount = bookingRepo.findByUserOrderByOrderDateDesc(u).stream()
-                            .filter(b -> b.getOrderStatus() != null &&
-                                    !b.getOrderStatus().equalsIgnoreCase("CANCELLED"))
-                            .flatMap(b -> b.getTickets() != null ? b.getTickets().stream() : java.util.stream.Stream.empty())
-                            .mapToLong(t -> t.getQuantity() != null ? t.getQuantity() : 1)
-                            .sum();
-                    m.put("ticketsBooked", ticketCount);
+                    m.put("blockReason",     u.getBlockReason());
+                    m.put("ticketsBooked",   ticketCountByUser.getOrDefault(u.getId(), 0L));
                     return m;
                 })
                 .collect(Collectors.toList());
@@ -100,13 +109,14 @@ public class AdminController {
             Integer currentRoleId = u.getRoleId() != null ? u.getRoleId() : 1;
             Integer newRoleId     = currentRoleId.equals(3) ? 1 : 3;
             u.setRoleId(newRoleId);
-            userRepo.save(u);
             String newRole = newRoleId.equals(3) ? "BLOCK" : "USER";
             String reason  = (body != null && body.get("reason") != null && !body.get("reason").isBlank())
                     ? body.get("reason") : null;
+            u.setBlockReason(newRoleId.equals(3) ? reason : null);
+            userRepo.save(u);
             String detail  = (newRoleId.equals(3) ? "Blocked" : "Unblocked") + " user: " + u.getEmail()
                     + (reason != null ? " | Reason: " + reason : "");
-            logService.log(newRoleId.equals(3) ? "BLOCK_USER" : "UNBLOCK_USER", detail);
+            logService.log(newRoleId.equals(3) ? "BLOCK_USER" : "UNBLOCK_USER", detail, u);
             return ResponseEntity.ok(Map.of(
                     "message", "Role updated to " + newRole,
                     "role",    newRole
@@ -151,7 +161,7 @@ public class AdminController {
         try {
             String reason = body != null ? body.getOrDefault("reason", "No reason provided") : "No reason provided";
             userRepo.findById(userId).ifPresent(u ->
-                    logService.log("DELETE_USER", "Deleted user: " + u.getEmail() + " | Reason: " + reason)
+                    logService.log("DELETE_USER", "Deleted user: " + u.getEmail() + " | Reason: " + reason, u)
             );
             userRepo.deleteById(userId);
             return ResponseEntity.ok(Map.of("message", "User deleted"));
@@ -200,8 +210,8 @@ public class AdminController {
     }
 
     /** GET /api/admin/bookings — all bookings with user info */
+    @Transactional
     @GetMapping("/bookings")
-    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> getAllBookings() {
         var bookings = bookingRepo.findAll();
         var result = bookings.stream().map(b -> {
@@ -270,18 +280,22 @@ public class AdminController {
     }
 
     /** GET /api/admin/logs */
+    @Transactional
     @GetMapping("/logs")
     public ResponseEntity<?> getLogs() {
         List<Map<String, Object>> logs = logRepo.findAllByOrderByTimestampDesc()
                 .stream()
                 .map(l -> {
                     java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
-                    m.put("id",         l.getId());
-                    m.put("adminName",  l.getAdminName() != null ? l.getAdminName() : l.getAdminEmail());
-                    m.put("adminEmail", l.getAdminEmail());
-                    m.put("action",     l.getAction());
-                    m.put("detail",     l.getDetail());
-                    m.put("timestamp",  l.getTimestamp().toString());
+                    m.put("id",             l.getId());
+                    m.put("adminName",      l.getAdminName() != null ? l.getAdminName() : l.getAdminEmail());
+                    m.put("adminEmail",     l.getAdminEmail());
+                    m.put("action",         l.getAction());
+                    m.put("detail",         l.getDetail());
+                    m.put("timestamp",      l.getTimestamp().toString());
+                    m.put("targetUserId",   l.getTargetUser() != null ? l.getTargetUser().getId()       : null);
+                    m.put("targetUserName", l.getTargetUser() != null ? l.getTargetUser().getFullName() : null);
+                    m.put("targetUserEmail",l.getTargetUser() != null ? l.getTargetUser().getEmail()    : null);
                     return m;
                 }).toList();
         return ResponseEntity.ok(logs);

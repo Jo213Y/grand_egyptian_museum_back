@@ -52,6 +52,9 @@ public class User {
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "block_reason", length = 500)
+    private String blockReason;
+
     // ── enums ────────────────────────────────────────────────────────────────
 
     public enum Role     { USER, ADMIN, BLOCK }
