@@ -28,4 +28,9 @@ public class AdminLog {
     @Column(name = "timestamp")
     @Builder.Default
     private LocalDateTime timestamp = LocalDateTime.now();
+
+    /** The user this log action was performed ON (nullable — not all actions target a user) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "target_user_id", nullable = true)
+    private User targetUser;
 }
