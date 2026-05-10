@@ -63,6 +63,7 @@ public class AdminController {
 
     /** GET /api/admin/users */
     @GetMapping("/users")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> getUsers() {
         List<Map<String, Object>> users = userRepo.findAll().stream()
                 .map(u -> {
@@ -78,8 +79,10 @@ public class AdminController {
                     m.put("createdAt",       u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
                     // count tickets booked by this user
                     long ticketCount = bookingRepo.findByUserOrderByOrderDateDesc(u).stream()
-                            .filter(b -> "Confirmed".equalsIgnoreCase(b.getOrderStatus()))
-                            .mapToLong(b -> b.getTickets() != null ? b.getTickets().size() : 0)
+                            .filter(b -> b.getOrderStatus() != null &&
+                                    !b.getOrderStatus().equalsIgnoreCase("CANCELLED"))
+                            .flatMap(b -> b.getTickets() != null ? b.getTickets().stream() : java.util.stream.Stream.empty())
+                            .mapToLong(t -> t.getQuantity() != null ? t.getQuantity() : 1)
                             .sum();
                     m.put("ticketsBooked", ticketCount);
                     return m;
@@ -198,6 +201,7 @@ public class AdminController {
 
     /** GET /api/admin/bookings — all bookings with user info */
     @GetMapping("/bookings")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> getAllBookings() {
         var bookings = bookingRepo.findAll();
         var result = bookings.stream().map(b -> {

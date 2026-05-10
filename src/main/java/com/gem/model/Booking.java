@@ -56,10 +56,6 @@ public class Booking {
     @Builder.Default
     private List<BookingTicket> tickets = new ArrayList<>();
 
-    /**
-     * Hall is NOT a column in orders — kept transient for UI convenience.
-     * Populate manually in service layer when needed.
-     */
     @Transient
     private Hall hall;
 
